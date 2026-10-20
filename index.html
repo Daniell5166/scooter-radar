@@ -190,6 +190,16 @@
     box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
   }
   #update-bar[hidden] { display: none; }
+  #install-bar {
+    position: fixed; z-index: 1002; left: 12px; right: 12px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    margin: 0 auto; max-width: 480px; display: flex; align-items: center; gap: 10px;
+    background: var(--panel); color: var(--fg); border-radius: 14px; padding: 10px 10px 10px 16px;
+    box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
+  }
+  #install-bar[hidden], #btn-install[hidden] { display: none; }
+  #install-bar span { flex: 1; min-width: 0; }
+  #btn-install-close { padding: 8px 12px; }
   #update-bar span { flex: 1; min-width: 0; }
 
   .leaflet-control-attribution { font-size: 10px; }
@@ -223,6 +233,13 @@
 </section>
 
 <div id="toast" hidden></div>
+
+<!-- Erscheint im Browser: App installieren bzw. was dafür noch fehlt -->
+<div id="install-bar" hidden>
+  <span id="install-text"></span>
+  <button class="primary" id="btn-install" hidden>Installieren</button>
+  <button class="ghost" id="btn-install-close" aria-label="Schließen">✕</button>
+</div>
 
 <!-- Erscheint, wenn während der Nutzung eine neue Version online geht -->
 <div id="update-bar" hidden>
@@ -1059,11 +1076,71 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
     .catch((err) => console.warn("Service Worker nicht registriert:", err));
 }
 
+/* =====================================================================
+   17. ALS APP INSTALLIEREN + SELBSTTEST
+   ---------------------------------------------------------------------
+   Im Browser (nicht in der installierten App) erscheint unten eine Leiste:
+   - Erkennt Chrome die Seite als App, gibt es einen "Installieren"-Knopf.
+   - Sonst prüft die App, welche Datei fehlt, und schreibt das hin.
+   ===================================================================== */
+const isInstalledApp =
+  window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+let installPrompt = null;
+
+function showInstallBar(text, canInstall) {
+  setText("install-text", text);
+  document.getElementById("btn-install").hidden = !canInstall;
+  document.getElementById("install-bar").hidden = false;
+}
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();               // eigenen Knopf statt Chrome-Standardleiste
+  installPrompt = e;
+  showInstallBar("Scooter Radar als App installieren", true);
+});
+
+window.addEventListener("appinstalled", () => {
+  document.getElementById("install-bar").hidden = true;
+  toast("Installiert! Starte die App ab jetzt über ihr Symbol.", 5000);
+});
+
+document.getElementById("btn-install").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+});
+document.getElementById("btn-install-close").addEventListener("click", () => {
+  document.getElementById("install-bar").hidden = true;
+});
+
+async function installSelfCheck() {
+  if (isInstalledApp || location.protocol !== "https:") return;
+  const needed = ["manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "sw.js"];
+  const missing = [];
+  for (const file of needed) {
+    try {
+      const res = await fetch(file, { cache: "no-store" });
+      if (!res.ok) missing.push(file);
+    } catch (e) { missing.push(file); }
+  }
+  // Chrome braucht ein paar Sekunden, bis es die Installation anbietet
+  setTimeout(() => {
+    if (installPrompt) return;
+    if (missing.length) {
+      showInstallBar("Installation nicht möglich, auf GitHub fehlt: " + missing.join(", "), false);
+    } else {
+      showInstallBar("Alles bereit. Menü ⋮ → „Zum Startbildschirm hinzufügen“ → „Installieren“", false);
+    }
+  }, 4000);
+}
+
 /* ===== START ===== */
 buildFleet();
 drawVehicles();
 locate(false);
 checkForUpdate(true);
+installSelfCheck();
 </script>
 </body>
 </html>
