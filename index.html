@@ -57,8 +57,10 @@
     --font-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   }
+  /* Dunkles Design: folgt dem Handy ("System") – außer in den Einstellungen
+     ist ausdrücklich "Hell" oder "Dunkel" gewählt (data-theme am <html>) */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0f1412; --panel: #18201c; --fg: #e7eeea; --muted: #94a39c;
       --line: #2b3631; --chip: #222c27; --me: #6b9bff; --route: #6b9bff;
       --primary: #e7eeea; --on-primary: #121815;
@@ -66,6 +68,14 @@
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
       color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1412; --panel: #18201c; --fg: #e7eeea; --muted: #94a39c;
+    --line: #2b3631; --chip: #222c27; --me: #6b9bff; --route: #6b9bff;
+    --primary: #e7eeea; --on-primary: #121815;
+    --demo-bg: #3a2e12; --demo-fg: #f2cf7a;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -195,7 +205,7 @@
   .scan svg { flex: none; color: var(--fg); }
 
   #toast {
-    position: fixed; z-index: 1002; left: 50%; top: calc(140px + env(safe-area-inset-top, 0px));
+    position: fixed; z-index: 1006; left: 50%; top: calc(140px + env(safe-area-inset-top, 0px));
     transform: translateX(-50%); background: var(--primary); color: var(--on-primary);
     padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 700;
     box-shadow: var(--shadow); max-width: calc(100% - 32px); text-align: center;
@@ -219,7 +229,7 @@
   #update-bar[hidden] { display: none; }
   #install-bar {
     position: fixed; z-index: 1002; left: 12px; right: 12px;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
     margin: 0 auto; max-width: 480px; display: flex; align-items: center; gap: 10px;
     background: var(--panel); color: var(--fg); border-radius: 14px; padding: 10px 10px 10px 16px;
     box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
@@ -232,6 +242,119 @@
   .leaflet-control-attribution { font-size: 10px; }
   .leaflet-bottom.leaflet-right { margin-bottom: env(safe-area-inset-bottom, 0px); }
   @media (prefers-reduced-motion: reduce) { #sheet { transition: none; } }
+
+  /* ---------- Konto-Knopf (unten links) ---------- */
+  #btn-account {
+    position: fixed; z-index: 1000;
+    left: max(14px, env(safe-area-inset-left, 0px));
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    width: 56px; height: 56px; padding: 0; border-radius: 50%;
+    background: var(--panel); box-shadow: var(--shadow);
+    display: grid; place-items: center;
+  }
+  .avatar {
+    border-radius: 50%; display: grid; place-items: center; flex: none;
+    background: #d9e6f9; color: #2a6df4; font-weight: 800; overflow: hidden;
+  }
+  #btn-account .avatar { width: 44px; height: 44px; font-size: 16px; }
+
+  /* ---------- Kontobereich (Vollbild, fährt von links herein) ---------- */
+  #account {
+    position: fixed; z-index: 1004; inset: 0; background: var(--bg); color: var(--fg);
+    display: flex; flex-direction: column;
+    transform: translateX(-102%); transition: transform 0.28s ease;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  #account.open { transform: translateX(0); }
+  .acc-top {
+    display: flex; align-items: center; gap: 8px; min-height: 60px;
+    padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(8px, env(safe-area-inset-left, 0px));
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .acc-top h1 { margin: 0; font-size: 18px; font-weight: 800; flex: 1; }
+  .acc-top button { background: transparent; width: 44px; height: 44px; padding: 0; font-size: 22px; }
+  #acc-body {
+    flex: 1; overflow-y: auto;
+    padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  .acc-wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 18px; }
+
+  .profile-card { display: flex; align-items: center; gap: 14px; }
+  .profile-card .avatar { width: 64px; height: 64px; font-size: 22px; }
+  .profile-card h2 { margin: 0; font-size: 20px; }
+  .profile-card p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  .wallet {
+    background: var(--primary); color: var(--on-primary); border-radius: 18px; padding: 16px 18px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .wallet small { display: block; font-size: 12px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+  .wallet strong { font-family: var(--font-num); font-size: 28px; }
+  .wallet button { background: var(--on-primary); color: var(--primary); }
+
+  .group-title { margin: 0 4px -8px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+  .group { background: var(--panel); border-radius: 16px; overflow: hidden; }
+  .item {
+    width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+    padding: 14px 16px; background: transparent; border-radius: 0; font-weight: 600;
+    border-bottom: 1px solid var(--line); min-height: 54px;
+  }
+  .group > .item:last-child, .group > .item:last-of-type { border-bottom: 0; }
+  .item .ico { width: 34px; height: 34px; border-radius: 10px; background: var(--chip); display: grid; place-items: center; flex: none; }
+  .item .txt { flex: 1; min-width: 0; }
+  .item .txt small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+  .item .chev { color: var(--muted); font-size: 20px; }
+  .item .val { color: var(--muted); font-weight: 600; font-size: 14px; }
+
+  /* Schalter (an/aus) */
+  .switch { position: relative; width: 48px; height: 28px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background 0.2s; pointer-events: none; }
+  .switch span::after {
+    content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s;
+  }
+  .switch input:checked + span { background: var(--ok); }
+  .switch input:checked + span::after { transform: translateX(20px); }
+  .switch input:focus-visible + span { outline: 3px solid var(--me); outline-offset: 2px; }
+
+  /* Auswahl in Segmenten (z. B. Hell / Dunkel / System) */
+  .seg { display: flex; background: var(--chip); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { flex: 1; padding: 7px 10px; font-size: 13px; background: transparent; border-radius: 8px; }
+  .seg button[aria-pressed="true"] { background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .stack { display: grid; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .stack:last-child { border-bottom: 0; }
+  .stack label, .stack .lbl { font-weight: 600; }
+  .stack small { color: var(--muted); font-size: 13px; }
+
+  .pay-card { display: flex; align-items: center; gap: 12px; }
+  .pay-logo {
+    width: 46px; height: 32px; border-radius: 6px; display: grid; place-items: center;
+    font-size: 11px; font-weight: 800; color: #fff; flex: none;
+  }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: none; display: grid; place-items: center; }
+  .radio.on { border-color: var(--ok); }
+  .radio.on::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--ok); }
+
+  .field { display: grid; gap: 6px; }
+  .field span { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field input, .field select {
+    font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--fg); width: 100%;
+  }
+  .field input:focus-visible, .field select:focus-visible { outline: 3px solid var(--me); outline-offset: 1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .full { width: 100%; padding: 14px; font-size: 16px; }
+  .msg { font-size: 14px; padding: 10px 14px; border-radius: 12px; }
+  .msg.ok { background: rgba(31, 157, 85, 0.14); color: var(--ok); }
+  .msg.err { background: rgba(217, 58, 58, 0.12); color: var(--low); }
+  .voucher { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .voucher:last-child { border-bottom: 0; }
+  .voucher b { display: block; }
+  .voucher small { color: var(--muted); }
+  .empty-hint { padding: 18px 16px; color: var(--muted); font-size: 14px; }
+  input[type=range] { width: 100%; accent-color: var(--ok); }
+  @media (prefers-reduced-motion: reduce) { #account { transition: none; } }
 </style>
 </head>
 <body>
@@ -260,6 +383,18 @@
 </section>
 
 <div id="toast" hidden></div>
+
+<!-- Konto-Knopf unten links -->
+<button id="btn-account" aria-label="Mein Konto"><span class="avatar" id="avatar-small"></span></button>
+
+<!-- Kontobereich: Inhalt wird per Skript je nach Unterseite gefüllt -->
+<section id="account" aria-hidden="true">
+  <div class="acc-top">
+    <button id="acc-back" aria-label="Zurück">←</button>
+    <h1 id="acc-title">Mein Konto</h1>
+  </div>
+  <div id="acc-body"></div>
+</section>
 
 <!-- Erscheint im Browser: App installieren bzw. was dafür noch fehlt -->
 <div id="install-bar" hidden>
@@ -320,7 +455,6 @@ const RESERVE_PER_MIN = 0.10;
    ===================================================================== */
 const MARIENPLATZ  = { lat: 48.1374, lon: 11.5755 };
 const TUM_GARCHING = { lat: 48.2650, lon: 11.6713 };
-const WALK_M_PER_MIN = 80;            // Gehgeschwindigkeit ≈ 4,8 km/h
 const ROUTING_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/driving/";
 const ICON_MIN_ZOOM = 15;             // ab dieser Zoomstufe: Symbole statt Punkte
 
@@ -344,6 +478,72 @@ const state = {
   rideResult: null,     // Dauer und Kosten nach Fahrtende
   timer: null,          // für Countdown / Fahrtzeit
 };
+
+/* =====================================================================
+   3b. EINSTELLUNGEN & KONTO (werden auf dem Handy gespeichert)
+   ---------------------------------------------------------------------
+   localStorage = kleiner Speicher im Browser. Er bleibt nach dem Schließen
+   der App erhalten, liegt aber NUR auf diesem Gerät. Später kommt das in
+   eine echte Datenbank auf einem Server.
+   ===================================================================== */
+const DEFAULT_SETTINGS = {
+  theme: "system",          // "system" | "light" | "dark"
+  mapStyle: "street",       // "street" | "satellite"
+  providers: { lime: true, voi: true, dott: true, bolt: true },
+  showScooter: true,
+  showBike: true,
+  minBattery: 0,            // in Prozent
+  walkSpeed: 4.8,           // km/h
+  compass: true,
+  notifyReserve: true,      // Demo
+  notifyOffers: false,      // Demo
+  language: "de",           // Demo
+};
+
+const DEFAULT_ACCOUNT = {
+  name: "Max Mustermann",
+  email: "max@beispiel.de",
+  balance: 0,               // Guthaben in €
+  defaultPayment: "paypal",
+  payments: [
+    { id: "paypal", type: "paypal", label: "PayPal", detail: "max@beispiel.de" },
+    { id: "visa1", type: "visa", label: "Visa", detail: "•••• 4242 · 09/28" },
+  ],
+  vouchers: [],             // eingelöste Gutscheine
+  rides: [],                // Fahrtenverlauf
+};
+
+function loadStored(key, defaults) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) return { ...defaults, ...JSON.parse(raw) };
+  } catch (e) {}
+  return JSON.parse(JSON.stringify(defaults));
+}
+function saveStored(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+
+const settings = loadStored("settings", DEFAULT_SETTINGS);
+const account = loadStored("account", DEFAULT_ACCOUNT);
+const saveSettings = () => saveStored("settings", settings);
+const saveAccount = () => saveStored("account", account);
+
+// Anbieter, die in den Einstellungen ausgeschaltet sind, gleich ausblenden
+for (const [id, on] of Object.entries(settings.providers)) if (!on) state.hidden.add(id);
+
+// Soll dieses Fahrzeug auf der Karte erscheinen? (Anbieter, Typ, Mindest-Akku)
+function isVisible(v) {
+  if (state.hidden.has(v.providerId)) return false;
+  if (v.kind === "scooter" && !settings.showScooter) return false;
+  if (v.kind === "bike" && !settings.showBike) return false;
+  return v.battery * 100 >= settings.minBattery;
+}
+
+function paymentLabel() {
+  const p = account.payments.find((x) => x.id === account.defaultPayment) || account.payments[0];
+  return p ? `${p.label} ${p.type === "paypal" ? "" : p.detail.split(" · ")[0]}`.trim() : "Keine hinterlegt";
+}
 
 /* =====================================================================
    4. BEISPIELFLOTTE ERZEUGEN
@@ -415,7 +615,8 @@ function distanceMeters(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const walkMinutes = (m) => Math.max(1, Math.round(m / WALK_M_PER_MIN));
+// Gehzeit in Minuten – mit dem Gehtempo aus den Einstellungen (km/h → m/min)
+const walkMinutes = (m) => Math.max(1, Math.round(m / ((settings.walkSpeed * 1000) / 60)));
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
 const euro = (x) => x.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 const clock = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -518,13 +719,19 @@ const TILE_SOURCES = [
   },
 ];
 
-let tileIndex = 0;
+// Satellitenbild – wählbar in den Einstellungen unter "Kartenstil"
+const SATELLITE_SOURCE = {
+  url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  options: { maxZoom: 19, attribution: "© Esri, Maxar, Earthstar Geographics" },
+};
+
 let tileLayer = null;
+let tileGeneration = 0;   // verhindert, dass alte Ausweich-Timer später dazwischenfunken
 
 function useTileSource(i) {
+  const gen = ++tileGeneration;
   if (tileLayer) map.removeLayer(tileLayer);
   if (i >= TILE_SOURCES.length) return showMapError();
-  tileIndex = i;
   const src = TILE_SOURCES[i];
   let loaded = 0, failed = 0;
   tileLayer = L.tileLayer(src.url, src.options).addTo(map);
@@ -532,9 +739,20 @@ function useTileSource(i) {
   tileLayer.on("tileload", () => { loaded++; });
   tileLayer.on("tileerror", () => {
     failed++;
-    if (failed >= 4 && loaded === 0) useTileSource(i + 1);
+    if (gen === tileGeneration && failed >= 4 && loaded === 0) useTileSource(i + 1);
   });
-  setTimeout(() => { if (tileIndex === i && loaded === 0) useTileSource(i + 1); }, 6000);
+  setTimeout(() => { if (gen === tileGeneration && loaded === 0) useTileSource(i + 1); }, 6000);
+}
+
+function applyMapStyle() {
+  if (settings.mapStyle === "satellite") {
+    tileGeneration++;
+    if (tileLayer) map.removeLayer(tileLayer);
+    tileLayer = L.tileLayer(SATELLITE_SOURCE.url, SATELLITE_SOURCE.options).addTo(map);
+    tileLayer.bringToBack();
+  } else {
+    useTileSource(0);
+  }
 }
 
 function showMapError() {
@@ -544,7 +762,7 @@ function showMapError() {
     location.protocol === "file:" ? "als lokale Datei" : `unter ${location.host || "dieser Adresse"}`;
 }
 
-useTileSource(0);
+applyMapStyle();
 
 const dotRenderer = L.canvas({ padding: 0.3, tolerance: 8 });
 const routeLayer = L.layerGroup().addTo(map);
@@ -595,7 +813,7 @@ function drawVehicles() {
 
   let visible = 0;
   for (const v of state.vehicles) {
-    if (state.hidden.has(v.providerId)) continue;
+    if (!isVisible(v)) continue;
     if (!bounds.contains([v.lat, v.lon])) continue;
     visible++;
 
@@ -874,7 +1092,7 @@ function screenReserve(v) {
       <li>Du kannst die Reservierung jederzeit aufheben.</li>
     </ul>
     ${walkBlock()}
-    <div class="row-select"><span>Zahlungsart</span><b>PayPal (Beispiel)</b></div>
+    <div class="row-select"><span>Zahlungsart</span><b>${paymentLabel()}</b></div>
     <div class="actions">
       <button class="ghost" data-action="toDetails">Zurück</button>
       <button class="primary" data-action="confirmReserve">Reservierung bestätigen</button>
@@ -912,7 +1130,8 @@ function screenBook(v) {
     <div class="price-box">
       <div class="price-row"><span>Entsperren</span><span>${euro(p.unlock)}</span></div>
       <div class="price-row"><span>Pro Minute</span><span>${euro(p.perMin)}</span></div>
-      <div class="price-row"><span>Zahlungsart</span><span>PayPal (Beispiel)</span></div>
+      <div class="price-row"><span>Zahlungsart</span><span>${paymentLabel()}</span></div>
+      ${account.balance > 0 ? `<div class="price-row"><span>Guthaben wird zuerst genutzt</span><span>${euro(account.balance)}</span></div>` : ""}
     </div>
     <div class="actions">
       <button class="ghost" data-action="backFromBook">Zurück</button>
@@ -947,6 +1166,8 @@ function screenSummary(v) {
       <div class="price-row"><span>Dauer</span><span>${mmss(r.seconds)}</span></div>
       <div class="price-row"><span>Entsperren</span><span>${euro(PROVIDERS[v.providerId].unlock)}</span></div>
       <div class="price-row total"><span>Gesamt</span><span>${euro(r.cost)}</span></div>
+      ${r.fromBalance > 0 ? `<div class="price-row"><span>Vom Guthaben</span><span>− ${euro(r.fromBalance)}</span></div>` : ""}
+      <div class="price-row"><span>Über ${r.payment}</span><span>${euro(r.cost - r.fromBalance)}</span></div>
     </div>
     <div class="actions">
       <button class="primary" data-action="close">Fertig</button>
@@ -1025,7 +1246,17 @@ const ACTIONS = {
   endRide() {
     stopTimer();
     const seconds = Math.floor((Date.now() - state.rideStart) / 1000);
-    state.rideResult = { seconds, cost: rideCost(state.selected, seconds) };
+    const v = state.selected;
+    const cost = rideCost(v, seconds);
+    const fromBalance = Math.min(account.balance, cost);   // Guthaben zuerst verrechnen
+    account.balance = Math.round((account.balance - fromBalance) * 100) / 100;
+    state.rideResult = { seconds, cost, fromBalance, payment: paymentLabel() };
+    // Fahrt im Verlauf speichern (neueste zuerst, höchstens 30)
+    account.rides.unshift({
+      date: Date.now(), provider: v.providerId, kind: v.kind, code: v.code, seconds, cost,
+    });
+    account.rides = account.rides.slice(0, 30);
+    saveAccount();
     state.mode = "summary";
     renderSheet();
   },
@@ -1063,7 +1294,7 @@ document.getElementById("btn-nearest").addEventListener("click", async () => {
   }
   const btn = document.getElementById("btn-nearest");
   const candidates = state.vehicles
-    .filter((v) => !state.hidden.has(v.providerId))
+    .filter(isVisible)
     .map((v) => ({ v, air: distanceMeters(state.me, v) }))
     .sort((a, b) => a.air - b.air)
     .slice(0, 5);
@@ -1169,7 +1400,7 @@ function onOrientation(e) {
       headingFrame = null;
       const el = meMarker.getElement();
       if (!el) return;
-      el.classList.add("has-heading");
+      el.classList.toggle("has-heading", settings.compass);   // in Einstellungen abschaltbar
       el.querySelector(".me-beam").style.transform = `rotate(${lastHeading}deg)`;
     });
   }
@@ -1211,17 +1442,25 @@ map.on("contextmenu", (e) => {
    15. ANBIETER-FILTER
    ===================================================================== */
 const chips = document.getElementById("chips");
+const chipButtons = {};
+
+// Anbieter ein-/ausblenden – gleiche Funktion für Knöpfe oben und Einstellungen
+function setProviderVisible(id, visible) {
+  if (visible) state.hidden.delete(id); else state.hidden.add(id);
+  settings.providers[id] = visible;
+  saveSettings();
+  chipButtons[id].setAttribute("aria-pressed", String(visible));
+  if (state.mode === "details" && state.hidden.has(state.selected.providerId)) closeSheet();
+  drawVehicles();
+}
+
 for (const [id, p] of Object.entries(PROVIDERS)) {
   const b = document.createElement("button");
   b.className = "chip";
-  b.setAttribute("aria-pressed", "true");
+  b.setAttribute("aria-pressed", String(!state.hidden.has(id)));
   b.innerHTML = `<i style="background:${p.color}"></i>${p.name}`;
-  b.onclick = () => {
-    if (state.hidden.has(id)) state.hidden.delete(id); else state.hidden.add(id);
-    b.setAttribute("aria-pressed", String(!state.hidden.has(id)));
-    if (state.mode === "details" && state.hidden.has(state.selected.providerId)) closeSheet();
-    drawVehicles();
-  };
+  b.onclick = () => setProviderVisible(id, state.hidden.has(id));
+  chipButtons[id] = b;
   chips.appendChild(b);
 }
 
@@ -1341,6 +1580,500 @@ async function installSelfCheck() {
     }
   }, 4000);
 }
+
+/* =====================================================================
+   18. KONTO & APP-EINSTELLUNGEN
+   ---------------------------------------------------------------------
+   Aufbau wie ein kleines Navigationssystem:
+   - accStack merkt sich die geöffneten Unterseiten (z. B. Konto → Zahlung → Neue Karte)
+   - "Zurück" (Pfeil oben oder Zurück-Taste am Handy) geht eine Seite zurück
+   - Jede Seite ist eine Funktion, die HTML liefert (pageMain, pagePayment …)
+   - Knöpfe mit data-go="seite" öffnen eine Unterseite,
+     Knöpfe mit data-acc="aktion" führen eine Aktion aus (ACC_ACTIONS)
+   ===================================================================== */
+const accEl = document.getElementById("account");
+const accBody = document.getElementById("acc-body");
+let accStack = [];
+let addPayType = "card";     // gewählter Typ auf der Seite "Zahlungsmethode hinzufügen"
+let voucherMsg = null;       // Rückmeldung nach dem Einlösen eines Gutscheins
+
+// Text aus Eingabefeldern sicher anzeigen (keine HTML-Befehle einschleusen)
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const initials = (name) => name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+
+function renderAvatar() {
+  setText("avatar-small", initials(account.name));
+}
+
+// Kleine Strich-Symbole für die Listen
+const ICON = (d) => `<span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+const ICONS = {
+  card: ICON('<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h4"/>'),
+  ticket: ICON('<path d="M3 8a2 2 0 0 0 0 4v4h18v-4a2 2 0 0 1 0-4V4H3z" transform="translate(0 2)"/><path d="M14 6v12" stroke-dasharray="2 2"/>'),
+  clock: ICON('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  gear: ICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'),
+  help: ICON('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.5v.7M12 17h.01"/>'),
+  info: ICON('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'),
+  plus: ICON('<path d="M12 5v14M5 12h14"/>'),
+  logout: ICON('<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/>'),
+};
+
+const PAY_STYLE = {
+  paypal: { bg: "#003087", text: "PP" },
+  visa: { bg: "#1a1f71", text: "VISA" },
+  mastercard: { bg: "#eb001b", text: "MC" },
+  card: { bg: "#4b5563", text: "KARTE" },
+  sepa: { bg: "#2f6f62", text: "SEPA" },
+};
+const payLogo = (type) => {
+  const s = PAY_STYLE[type] || PAY_STYLE.card;
+  return `<span class="pay-logo" style="background:${s.bg}">${s.text}</span>`;
+};
+
+// ---------- Navigation ----------
+function openAccount() {
+  accStack = ["main"];
+  renderAccount();
+  accEl.classList.add("open");
+  accEl.setAttribute("aria-hidden", "false");
+  history.pushState({ account: true }, "");    // Zurück-Taste am Handy schließt das Konto
+}
+function goTo(page) {
+  accStack.push(page);
+  renderAccount();
+  accBody.scrollTop = 0;
+  history.pushState({ account: true }, "");
+}
+// Wird von der Zurück-Taste des Handys UND vom Pfeil oben ausgelöst
+window.addEventListener("popstate", () => {
+  if (!accEl.classList.contains("open")) return;
+  accStack.pop();
+  if (accStack.length === 0) {
+    accEl.classList.remove("open");
+    accEl.setAttribute("aria-hidden", "true");
+    drawVehicles();
+  } else {
+    renderAccount();
+  }
+});
+document.getElementById("btn-account").addEventListener("click", openAccount);
+document.getElementById("acc-back").addEventListener("click", () => history.back());
+
+const PAGES = {
+  main:          { title: "Mein Konto",               render: pageMain },
+  profile:       { title: "Profil bearbeiten",        render: pageProfile },
+  payment:       { title: "Zahlungsmethoden",         render: pagePayment },
+  "payment-add": { title: "Zahlungsmethode hinzufügen", render: pagePaymentAdd },
+  vouchers:      { title: "Gutscheine",               render: pageVouchers },
+  rides:         { title: "Meine Fahrten",            render: pageRides },
+  settings:      { title: "App-Einstellungen",        render: pageSettings },
+  help:          { title: "Hilfe & Kontakt",          render: pageHelp },
+  about:         { title: "Über Scooter Radar",       render: pageAbout },
+};
+
+function renderAccount() {
+  const page = PAGES[accStack[accStack.length - 1]];
+  setText("acc-title", page.title);
+  document.getElementById("acc-back").textContent = accStack.length > 1 ? "←" : "✕";
+  accBody.innerHTML = `<div class="acc-wrap">${page.render()}</div>`;
+  wireAccount();
+}
+
+// ---------- Seiten ----------
+function pageMain() {
+  const rides = account.rides.length;
+  return `
+    <div class="profile-card">
+      <span class="avatar">${esc(initials(account.name))}</span>
+      <div style="flex:1;min-width:0">
+        <h2>${esc(account.name)}</h2>
+        <p>${esc(account.email)}</p>
+      </div>
+      <button class="ghost" data-go="profile">Bearbeiten</button>
+    </div>
+
+    <div class="wallet">
+      <div><small>Guthaben</small><strong>${euro(account.balance)}</strong></div>
+      <button data-acc="topUp">Aufladen</button>
+    </div>
+
+    <p class="group-title">Fahren & Bezahlen</p>
+    <div class="group">
+      <button class="item" data-go="payment">${ICONS.card}<span class="txt">Zahlungsmethoden<small>${esc(paymentLabel())}</small></span><span class="chev">›</span></button>
+      <button class="item" data-go="vouchers">${ICONS.ticket}<span class="txt">Gutscheine<small>Code einlösen</small></span><span class="chev">›</span></button>
+      <button class="item" data-go="rides">${ICONS.clock}<span class="txt">Meine Fahrten<small>${rides === 1 ? "1 Fahrt" : rides + " Fahrten"}</small></span><span class="chev">›</span></button>
+    </div>
+
+    <p class="group-title">App</p>
+    <div class="group">
+      <button class="item" data-go="settings">${ICONS.gear}<span class="txt">App-Einstellungen<small>Karte, Darstellung, Navigation</small></span><span class="chev">›</span></button>
+      <button class="item" data-go="help">${ICONS.help}<span class="txt">Hilfe & Kontakt</span><span class="chev">›</span></button>
+      <button class="item" data-go="about">${ICONS.info}<span class="txt">Über Scooter Radar<small>Version ${esc(runningVersion || "–")}</small></span><span class="chev">›</span></button>
+    </div>
+
+    <div class="group">
+      <button class="item" data-acc="logout">${ICONS.logout}<span class="txt">Abmelden</span></button>
+    </div>
+    <span class="demo" style="justify-self:start">Demo · Konto, Zahlungen und Gutscheine sind Beispiele</span>`;
+}
+
+function pageProfile() {
+  return `
+    <div class="group"><div class="stack">
+      <label class="field"><span>Name</span><input id="pf-name" value="${esc(account.name)}" autocomplete="name"></label>
+      <label class="field"><span>E-Mail</span><input id="pf-email" type="email" value="${esc(account.email)}" autocomplete="email"></label>
+    </div></div>
+    <button class="primary full" data-acc="saveProfile">Speichern</button>`;
+}
+
+function pagePayment() {
+  const list = account.payments.map((p) => `
+    <div class="item">
+      <button class="radio ${p.id === account.defaultPayment ? "on" : ""}" data-acc="setDefault" data-id="${p.id}"
+              aria-label="${esc(p.label)} als Standard wählen" style="padding:0;background:transparent"></button>
+      <span class="pay-card" style="flex:1;min-width:0">${payLogo(p.type)}
+        <span class="txt">${esc(p.label)}<small>${esc(p.detail)}${p.id === account.defaultPayment ? " · Standard" : ""}</small></span>
+      </span>
+      ${p.id === account.defaultPayment ? "" : `<button class="ghost" style="padding:8px 12px;font-size:13px" data-acc="removePay" data-id="${p.id}">Entfernen</button>`}
+    </div>`).join("");
+  return `
+    <p class="group-title">Gespeicherte Zahlungsmethoden</p>
+    <div class="group">${list || '<div class="empty-hint">Noch keine Zahlungsmethode hinterlegt.</div>'}</div>
+    <div class="group">
+      <button class="item" data-go="payment-add">${ICONS.plus}<span class="txt">Zahlungsmethode hinzufügen</span><span class="chev">›</span></button>
+    </div>
+    <p class="note" style="margin:0 4px">Tippe auf den Kreis, um festzulegen, womit deine Fahrten bezahlt werden.</p>`;
+}
+
+function pagePaymentAdd() {
+  const seg = (val, label) => `<button data-acc="setAddType" data-value="${val}" aria-pressed="${addPayType === val}">${label}</button>`;
+  let fields = "";
+  if (addPayType === "card") {
+    fields = `
+      <label class="field"><span>Karteninhaber</span><input id="pa-holder" autocomplete="off" placeholder="Max Mustermann"></label>
+      <label class="field"><span>Kartennummer</span><input id="pa-number" inputmode="numeric" autocomplete="off" placeholder="4242 4242 4242 4242"></label>
+      <div class="row2">
+        <label class="field"><span>Gültig bis</span><input id="pa-exp" autocomplete="off" placeholder="MM/JJ"></label>
+        <label class="field"><span>Prüfnummer</span><input id="pa-cvc" inputmode="numeric" autocomplete="off" placeholder="123"></label>
+      </div>`;
+  } else if (addPayType === "paypal") {
+    fields = `<label class="field"><span>PayPal-E-Mail</span><input id="pa-mail" type="email" autocomplete="off" placeholder="name@beispiel.de"></label>`;
+  } else {
+    fields = `
+      <label class="field"><span>Kontoinhaber</span><input id="pa-holder" autocomplete="off" placeholder="Max Mustermann"></label>
+      <label class="field"><span>IBAN</span><input id="pa-iban" autocomplete="off" placeholder="DE00 0000 0000 0000 0000 00"></label>`;
+  }
+  return `
+    <div class="seg">${seg("card", "Kreditkarte")}${seg("paypal", "PayPal")}${seg("sepa", "Lastschrift")}</div>
+    <div class="group"><div class="stack">${fields}</div></div>
+    <div id="pa-msg"></div>
+    <button class="primary full" data-acc="savePayment">Hinzufügen</button>
+    <span class="demo" style="justify-self:start">Demo · nur zum Testen, nichts wird geprüft oder belastet. Gib keine echten Kartendaten ein.</span>`;
+}
+
+const VOUCHER_CODES = {
+  WILLKOMMEN: { amount: 5, title: "Willkommensbonus" },
+  STUDENT:    { amount: 3, title: "Studi-Rabatt" },
+  MUENCHEN:   { amount: 2, title: "München-Aktion" },
+};
+
+function pageVouchers() {
+  const list = account.vouchers.map((v) => `
+    <div class="voucher">
+      <span><b>${esc(v.title)}</b><small>Code ${esc(v.code)} · eingelöst am ${new Date(v.date).toLocaleDateString("de-DE")}</small></span>
+      <b class="num">+ ${euro(v.amount)}</b>
+    </div>`).join("");
+  const msg = voucherMsg ? `<div class="msg ${voucherMsg.ok ? "ok" : "err"}">${esc(voucherMsg.text)}</div>` : "";
+  voucherMsg = null;
+  return `
+    <div class="group"><div class="stack">
+      <label class="field"><span>Gutscheincode</span><input id="vc-code" autocomplete="off" autocapitalize="characters" placeholder="z. B. WILLKOMMEN"></label>
+      <button class="primary full" data-acc="redeem">Einlösen</button>
+      <small>Zum Testen: WILLKOMMEN, STUDENT oder MUENCHEN. Der Betrag landet als Guthaben in deinem Konto und wird bei der nächsten Fahrt zuerst verrechnet.</small>
+    </div></div>
+    ${msg}
+    <p class="group-title">Eingelöste Gutscheine</p>
+    <div class="group">${list || '<div class="empty-hint">Noch keine Gutscheine eingelöst.</div>'}</div>`;
+}
+
+function pageRides() {
+  if (!account.rides.length) {
+    return `<div class="group"><div class="empty-hint">Noch keine Fahrten. Buch auf der Karte eine Demo-Fahrt, dann erscheint sie hier.</div></div>`;
+  }
+  const list = account.rides.map((r) => {
+    const p = PROVIDERS[r.provider];
+    const d = new Date(r.date);
+    return `
+      <div class="item">
+        <img src="${iconUrl({ providerId: r.provider, kind: r.kind, battery: 1 })}" alt="" width="34" height="34">
+        <span class="txt">${KINDS[r.kind].label} · ${p.name}<small>${d.toLocaleDateString("de-DE")} ${clock(d)} · ${mmss(r.seconds)} Min.</small></span>
+        <span class="val num">${euro(r.cost)}</span>
+      </div>`;
+  }).join("");
+  return `<div class="group">${list}</div>`;
+}
+
+function pageSettings() {
+  const seg = (key, val, label) =>
+    `<button data-setting="${key}" data-value="${val}" aria-pressed="${String(settings[key]) === String(val)}">${label}</button>`;
+  const sw = (attr, checked, label, sub) => `
+    <label class="item" style="cursor:pointer">
+      <span class="txt">${label}${sub ? `<small>${sub}</small>` : ""}</span>
+      <span class="switch"><input type="checkbox" ${attr} ${checked ? "checked" : ""}><span></span></span>
+    </label>`;
+  const providerSwitches = Object.entries(PROVIDERS).map(([id, p]) =>
+    sw(`data-provider="${id}"`, settings.providers[id],
+       `<span style="display:inline-flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:${p.color};display:inline-block"></i>${p.name}</span>`)
+  ).join("");
+
+  return `
+    <p class="group-title">Darstellung</p>
+    <div class="group">
+      <div class="stack"><span class="lbl">Design</span>
+        <div class="seg">${seg("theme", "system", "Wie Handy")}${seg("theme", "light", "Hell")}${seg("theme", "dark", "Dunkel")}</div>
+      </div>
+      <div class="stack"><span class="lbl">Kartenstil</span>
+        <div class="seg">${seg("mapStyle", "street", "Straßenkarte")}${seg("mapStyle", "satellite", "Satellit")}</div>
+      </div>
+    </div>
+
+    <p class="group-title">Anbieter auf der Karte</p>
+    <div class="group">${providerSwitches}</div>
+
+    <p class="group-title">Fahrzeuge</p>
+    <div class="group">
+      ${sw('data-setting="showScooter"', settings.showScooter, "E-Scooter anzeigen")}
+      ${sw('data-setting="showBike"', settings.showBike, "E-Bikes anzeigen")}
+      <div class="stack">
+        <span class="lbl">Mindest-Akkustand: <span class="num" id="minbat-label">${settings.minBattery} %</span></span>
+        <input type="range" min="0" max="80" step="10" value="${settings.minBattery}" data-setting="minBattery" aria-label="Mindest-Akkustand">
+        <small>Fahrzeuge mit weniger Akku werden ausgeblendet.</small>
+      </div>
+    </div>
+
+    <p class="group-title">Navigation</p>
+    <div class="group">
+      <div class="stack"><span class="lbl">Gehtempo</span>
+        <div class="seg">${seg("walkSpeed", 4, "Gemütlich")}${seg("walkSpeed", 4.8, "Normal")}${seg("walkSpeed", 5.6, "Zügig")}</div>
+        <small>Bestimmt die angezeigte Gehzeit zum Fahrzeug.</small>
+      </div>
+      ${sw('data-setting="compass"', settings.compass, "Blickrichtung anzeigen", "Kegel am eigenen Standort")}
+    </div>
+
+    <p class="group-title">Benachrichtigungen · Demo</p>
+    <div class="group">
+      ${sw('data-setting="notifyReserve"', settings.notifyReserve, "Reservierung läuft bald ab")}
+      ${sw('data-setting="notifyOffers"', settings.notifyOffers, "Angebote und Aktionen")}
+    </div>
+
+    <p class="group-title">Sprache & Region · Demo</p>
+    <div class="group">
+      <div class="stack">
+        <label class="field"><span>Sprache</span>
+          <select data-setting="language">
+            <option value="de" ${settings.language === "de" ? "selected" : ""}>Deutsch</option>
+            <option value="en" ${settings.language === "en" ? "selected" : ""}>English</option>
+          </select>
+        </label>
+      </div>
+      <div class="item"><span class="txt">Einheiten</span><span class="val">Metrisch (km, €)</span></div>
+    </div>
+
+    <p class="group-title">Daten</p>
+    <div class="group">
+      <button class="item" data-acc="resetSettings"><span class="txt">Einstellungen zurücksetzen</span></button>
+      <button class="item" data-acc="resetAccount" style="color:var(--low)"><span class="txt">Konto-Demodaten löschen<small>Guthaben, Gutscheine, Fahrten, Zahlungsmethoden</small></span></button>
+    </div>`;
+}
+
+function pageHelp() {
+  const faq = [
+    ["Wie buche ich ein Fahrzeug?", "Tippe auf der Karte auf ein Fahrzeug, dann auf „Jetzt buchen“ und „Entsperren“."],
+    ["Was kostet eine Fahrt?", "Entsperren plus Minutenpreis des Anbieters. Die Preise stehen im Fenster des Fahrzeugs."],
+    ["Wie lange hält eine Reservierung?", `${RESERVE_MINUTES} Minuten, die ersten ${RESERVE_FREE_MINUTES} Minuten sind kostenlos.`],
+    ["Warum sehe ich keine Fahrzeuge?", "Prüfe die Anbieter-Filter oben und den Mindest-Akkustand in den Einstellungen."],
+  ];
+  return `
+    <div class="group">${faq.map(([q, a]) => `<div class="stack"><span class="lbl">${q}</span><small>${a}</small></div>`).join("")}</div>
+    <p class="group-title">Kontakt · Demo</p>
+    <div class="group"><div class="stack"><span class="lbl">support@scooter-radar.example</span><small>Antwort in der Regel innerhalb von 24 Stunden.</small></div></div>`;
+}
+
+function pageAbout() {
+  return `
+    <div class="group">
+      <div class="item"><span class="txt">Version</span><span class="val num">${esc(runningVersion || (location.protocol === "file:" ? "lokal" : "–"))}</span></div>
+      <button class="item" data-acc="checkUpdate"><span class="txt">Nach Updates suchen</span><span class="chev">›</span></button>
+    </div>
+    <div class="group"><div class="stack">
+      <span class="lbl">Daten & Dienste</span>
+      <small>Karte © Esri und OpenStreetMap-Mitwirkende. Fußwege berechnet mit OSRM (FOSSGIS, OpenStreetMap-Daten). Fahrzeuge, Preise und Konto sind Beispieldaten.</small>
+    </div></div>`;
+}
+
+// ---------- Was die Knöpfe im Konto tun ----------
+const ACC_ACTIONS = {
+  topUp() {
+    account.balance = Math.round((account.balance + 10) * 100) / 100;
+    saveAccount();
+    renderAccount();
+    toast("Demo: 10,00 € Guthaben gutgeschrieben");
+  },
+  logout() { toast("Demo: Abmelden kommt, sobald es echte Konten gibt."); },
+  saveProfile() {
+    const name = document.getElementById("pf-name").value.trim();
+    const email = document.getElementById("pf-email").value.trim();
+    if (!name) return toast("Bitte gib einen Namen ein.");
+    account.name = name;
+    account.email = email;
+    saveAccount();
+    renderAvatar();
+    toast("Profil gespeichert");
+    history.back();
+  },
+  setDefault(el) {
+    account.defaultPayment = el.dataset.id;
+    saveAccount();
+    renderAccount();
+    toast("Standard-Zahlungsmethode geändert");
+  },
+  removePay(el) {
+    account.payments = account.payments.filter((p) => p.id !== el.dataset.id);
+    saveAccount();
+    renderAccount();
+  },
+  setAddType(el) { addPayType = el.dataset.value; renderAccount(); },
+  savePayment() {
+    const val = (id) => (document.getElementById(id)?.value || "").trim();
+    const fail = (t) => { document.getElementById("pa-msg").innerHTML = `<div class="msg err">${t}</div>`; };
+    let entry;
+    if (addPayType === "card") {
+      const digits = val("pa-number").replace(/\D/g, "");
+      if (digits.length < 12 || digits.length > 19) return fail("Die Kartennummer muss 12 bis 19 Ziffern haben.");
+      if (!/^\d{2}\/\d{2}$/.test(val("pa-exp"))) return fail("Bitte das Ablaufdatum als MM/JJ eingeben.");
+      const type = digits[0] === "4" ? "visa" : digits[0] === "5" ? "mastercard" : "card";
+      // Nur die letzten 4 Ziffern werden gespeichert – nie die ganze Nummer
+      entry = { type, label: { visa: "Visa", mastercard: "Mastercard", card: "Kreditkarte" }[type],
+                detail: `•••• ${digits.slice(-4)} · ${val("pa-exp")}` };
+    } else if (addPayType === "paypal") {
+      if (!/^\S+@\S+\.\S+$/.test(val("pa-mail"))) return fail("Bitte eine gültige E-Mail-Adresse eingeben.");
+      entry = { type: "paypal", label: "PayPal", detail: val("pa-mail") };
+    } else {
+      const iban = val("pa-iban").replace(/\s/g, "").toUpperCase();
+      if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return fail("Die IBAN sieht nicht gültig aus.");
+      entry = { type: "sepa", label: "Lastschrift", detail: `${iban.slice(0, 4)} •••• ${iban.slice(-4)}` };
+    }
+    entry.id = "pm" + Date.now();
+    account.payments.push(entry);
+    if (!account.payments.some((p) => p.id === account.defaultPayment)) account.defaultPayment = entry.id;
+    saveAccount();
+    toast(`${entry.label} hinzugefügt (Demo)`);
+    history.back();
+  },
+  redeem() {
+    const code = (document.getElementById("vc-code").value || "").trim().toUpperCase();
+    const info = VOUCHER_CODES[code];
+    if (!code) voucherMsg = { ok: false, text: "Bitte einen Code eingeben." };
+    else if (!info) voucherMsg = { ok: false, text: `Der Code „${code}“ ist ungültig.` };
+    else if (account.vouchers.some((v) => v.code === code)) voucherMsg = { ok: false, text: "Diesen Code hast du schon eingelöst." };
+    else {
+      account.vouchers.unshift({ code, title: info.title, amount: info.amount, date: Date.now() });
+      account.balance = Math.round((account.balance + info.amount) * 100) / 100;
+      saveAccount();
+      voucherMsg = { ok: true, text: `${info.title}: ${euro(info.amount)} wurden deinem Guthaben gutgeschrieben.` };
+    }
+    renderAccount();
+  },
+  resetSettings() {
+    Object.assign(settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+    saveSettings();
+    for (const id of Object.keys(PROVIDERS)) setProviderVisible(id, true);
+    applyTheme();
+    applyMapStyle();
+    drawVehicles();
+    renderAccount();
+    toast("Einstellungen zurückgesetzt");
+  },
+  resetAccount() {
+    const name = account.name, email = account.email;
+    Object.assign(account, JSON.parse(JSON.stringify(DEFAULT_ACCOUNT)), { name, email });
+    saveAccount();
+    renderAccount();
+    toast("Konto-Demodaten gelöscht");
+  },
+  async checkUpdate() {
+    if (location.protocol === "file:") return toast("Updates gibt es nur in der installierten App.");
+    try {
+      const info = await fetchVersionInfo();
+      if (runningVersion && info.version !== runningVersion) {
+        toast(`Neue Version ${info.version} wird geladen …`);
+        setTimeout(() => location.reload(), 900);
+      } else {
+        toast(`Du hast die neueste Version (${info.version}).`);
+      }
+    } catch (e) {
+      toast("Keine Verbindung. Versuch es später noch einmal.");
+    }
+  },
+};
+
+// ---------- Einstellungen sofort anwenden ----------
+function applyTheme() {
+  const root = document.documentElement;
+  if (settings.theme === "system") delete root.dataset.theme;
+  else root.dataset.theme = settings.theme;
+}
+
+function applySetting(key) {
+  saveSettings();
+  if (key === "theme") applyTheme();
+  if (key === "mapStyle") applyMapStyle();
+  if (["showScooter", "showBike", "minBattery"].includes(key)) {
+    if (state.mode === "details" && state.selected && !isVisible(state.selected)) closeSheet();
+    drawVehicles();
+  }
+  if (key === "compass") {
+    const el = meMarker.getElement();
+    if (el) el.classList.toggle("has-heading", settings.compass && lastHeading !== null);
+  }
+  if (key === "walkSpeed" && state.mode) renderSheet();
+  if (key === "language" && settings.language !== "de") toast("Demo: Weitere Sprachen kommen in einer späteren Version.");
+}
+
+function wireAccount() {
+  accBody.querySelectorAll("[data-go]").forEach((el) =>
+    el.addEventListener("click", () => goTo(el.dataset.go)));
+  accBody.querySelectorAll("[data-acc]").forEach((el) =>
+    el.addEventListener("click", () => ACC_ACTIONS[el.dataset.acc](el)));
+
+  // Segment-Knöpfe (Design, Kartenstil, Gehtempo)
+  accBody.querySelectorAll("button[data-setting]").forEach((el) =>
+    el.addEventListener("click", () => {
+      const key = el.dataset.setting;
+      settings[key] = typeof DEFAULT_SETTINGS[key] === "number" ? Number(el.dataset.value) : el.dataset.value;
+      applySetting(key);
+      renderAccount();
+    }));
+  // Schalter
+  accBody.querySelectorAll('input[type="checkbox"][data-setting]').forEach((el) =>
+    el.addEventListener("change", () => { settings[el.dataset.setting] = el.checked; applySetting(el.dataset.setting); }));
+  accBody.querySelectorAll('input[type="checkbox"][data-provider]').forEach((el) =>
+    el.addEventListener("change", () => setProviderVisible(el.dataset.provider, el.checked)));
+  // Schieberegler Mindest-Akku
+  accBody.querySelectorAll('input[type="range"][data-setting]').forEach((el) => {
+    el.addEventListener("input", () => setText("minbat-label", el.value + " %"));
+    el.addEventListener("change", () => { settings.minBattery = Number(el.value); applySetting("minBattery"); });
+  });
+  // Auswahlliste Sprache
+  accBody.querySelectorAll("select[data-setting]").forEach((el) =>
+    el.addEventListener("change", () => { settings[el.dataset.setting] = el.value; applySetting(el.dataset.setting); }));
+  // Enter im Gutscheinfeld = Einlösen
+  const vc = document.getElementById("vc-code");
+  if (vc) vc.addEventListener("keydown", (e) => { if (e.key === "Enter") ACC_ACTIONS.redeem(); });
+}
+
+applyTheme();
+renderAvatar();
 
 /* ===== START ===== */
 buildFleet();
