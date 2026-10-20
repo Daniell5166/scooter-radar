@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scooter Radar</title>
+
+<!-- Macht die Seite zur installierbaren App -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16201b">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<!--
+  SCOOTER RADAR – App-Version (PWA)
+  ===========================
+  - Installierbar über Chrome: Menü ⋮ → "Zum Startbildschirm hinzufügen"
+  - Prüft bei jedem Start version.json und lädt automatisch die neueste Fassung
+    (siehe sw.js und Abschnitt 16 unten)
+
+  - Karte: Esri-Straßenkarte (bei dir getestet), weitere Anbieter als Reserve
+  - Jedes Fahrzeug: weißer Kreis, Symbol (Scooter/Fahrrad) in Anbieterfarbe,
+    Ring außen zeigt den Akku: grün ab 50 %, gelb ab 25 %, darunter rot
+  - Antippen: Fußweg wird sofort berechnet und eingezeichnet, Fenster zeigt
+    Gehzeit, Akku und Preise
+  - Reservieren und Buchen als DEMO-Ablauf (es wird nichts gebucht oder bezahlt)
+  - "Nächster" sucht das Fahrzeug mit dem kürzesten Fußweg
+
+  ALLE FAHRZEUGE, AKKUSTÄNDE UND PREISE SIND BEISPIELDATEN.
+  Der Fußweg kommt live vom OSRM-Routingserver der FOSSGIS (OpenStreetMap-Daten).
+-->
+
+<!-- Kartenbibliothek Leaflet – gleiche Quelle wie in karte.html -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
+
+<style>
+  :root {
+    --bg: #f2f4f3;
+    --panel: #ffffff;
+    --fg: #16201b;
+    --muted: #5d6a64;
+    --line: #dfe5e2;
+    --chip: #eef2f0;
+    --me: #2a6df4;
+    --route: #2a6df4;
+    --primary: #16201b;
+    --on-primary: #ffffff;
+    --ok: #1f9d55;
+    --mid: #e0a800;
+    --low: #d93a3a;
+    --demo-bg: #fff3d6;
+    --demo-fg: #7a5200;
+    --shadow: 0 10px 30px rgba(20, 30, 25, 0.18);
+    --font-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1412; --panel: #18201c; --fg: #e7eeea; --muted: #94a39c;
+      --line: #2b3631; --chip: #222c27; --me: #6b9bff; --route: #6b9bff;
+      --primary: #e7eeea; --on-primary: #121815;
+      --demo-bg: #3a2e12; --demo-fg: #f2cf7a;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.4 var(--font-ui); overflow: hidden; }
+  #map { position: fixed; inset: 0; background: var(--bg); }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+  button {
+    font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 12px;
+    padding: 10px 14px; background: var(--panel); color: var(--fg);
+  }
+  button.primary { background: var(--primary); color: var(--on-primary); }
+  button:focus-visible { outline: 3px solid var(--me); outline-offset: 2px; }
+  button:disabled { opacity: 0.45; cursor: default; }
+
+  /* ---------- Obere Leiste ---------- */
+  #top {
+    position: fixed; z-index: 1000; left: 0; right: 0; top: 0;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+    display: grid; gap: 8px; pointer-events: none;
+  }
+  #top > * { pointer-events: auto; }
+  .bar { display: flex; gap: 8px; align-items: center; }
+  .brand {
+    flex: 1; min-width: 0; background: var(--panel); border-radius: 14px; padding: 8px 14px;
+    box-shadow: var(--shadow);
+  }
+  .brand b { display: block; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand span { font-size: 12px; color: var(--muted); }
+  .bar button { box-shadow: var(--shadow); height: 52px; }
+  #btn-locate { width: 52px; padding: 0; display: grid; place-items: center; }
+
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .chip {
+    display: inline-flex; gap: 7px; align-items: center; white-space: nowrap;
+    padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    background: var(--panel); color: var(--fg); box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .chip i { width: 10px; height: 10px; border-radius: 50%; }
+  .chip[aria-pressed="false"] { opacity: 0.45; }
+  .chip[aria-pressed="false"] i { background: transparent !important; outline: 2px solid var(--muted); }
+
+  /* Fahrzeug-Symbole auf der Karte */
+  .vehicle-icon { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+
+  /* ---------- Bottom Sheet ---------- */
+  #sheet {
+    position: fixed; z-index: 1001; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px;
+    max-height: 82vh; overflow-y: auto;
+    background: var(--panel); border-radius: 22px 22px 0 0; box-shadow: var(--shadow);
+    padding: 10px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+    transform: translateY(110%); transition: transform 0.28s ease;
+  }
+  #sheet.open { transform: translateY(0); }
+  .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: center; gap: 12px; }
+  .sheet-head img { width: 48px; height: 48px; flex: none; }
+  .sheet-head h2 { margin: 0; font-size: 18px; }
+  .sheet-head p { margin: 0; font-size: 13px; color: var(--muted); }
+  .sheet-head .x { margin-left: auto; background: var(--chip); width: 36px; height: 36px; padding: 0; border-radius: 50%; flex: none; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 12px; }
+  .stat { background: var(--chip); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .stat small { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat strong { font-family: var(--font-num); font-size: 18px; }
+  .meter { height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; border-radius: 3px; }
+
+  .walk { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 0 2px; }
+  .walk strong { font-family: var(--font-num); font-size: 30px; line-height: 1; }
+  .walk span { color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+
+  .price-box { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 0 0 16px; display: grid; gap: 6px; }
+  .price-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .price-row span:last-child { font-family: var(--font-num); font-weight: 700; }
+  .price-row.total { border-top: 1px solid var(--line); padding-top: 6px; }
+
+  .actions { display: flex; gap: 8px; }
+  .actions button { flex: 1; padding: 14px; font-size: 16px; }
+  .ghost { background: var(--chip); }
+
+  .demo {
+    display: inline-block; background: var(--demo-bg); color: var(--demo-fg);
+    font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin: 12px 0 10px;
+  }
+  .big-clock { font-family: var(--font-num); font-size: 52px; font-weight: 700; line-height: 1; margin: 6px 0; }
+  .list { margin: 0 0 16px; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .list li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+  .list li::before { content: "✓"; color: var(--ok); font-weight: 800; }
+  .row-select {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    background: var(--chip); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; font-size: 14px;
+  }
+  .row-select b { font-weight: 700; }
+  .scan {
+    border: 2px dashed var(--line); border-radius: 16px; padding: 18px; margin: 0 0 16px;
+    display: flex; gap: 14px; align-items: center; color: var(--muted); font-size: 14px;
+  }
+  .scan svg { flex: none; color: var(--fg); }
+
+  #toast {
+    position: fixed; z-index: 1002; left: 50%; top: calc(140px + env(safe-area-inset-top, 0px));
+    transform: translateX(-50%); background: var(--primary); color: var(--on-primary);
+    padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    box-shadow: var(--shadow); max-width: calc(100% - 32px); text-align: center;
+  }
+
+  #map-error {
+    position: fixed; z-index: 1003; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(440px, calc(100% - 32px)); background: var(--panel); color: var(--fg);
+    border-radius: 18px; padding: 20px 22px; box-shadow: var(--shadow);
+  }
+  #map-error h2 { margin: 0 0 8px; font-size: 18px; }
+  #map-error p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; }
+
+  .brand small { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  #update-bar {
+    position: fixed; z-index: 1002; left: 12px; right: 12px; top: calc(118px + env(safe-area-inset-top, 0px));
+    margin: 0 auto; max-width: 480px; display: flex; align-items: center; gap: 12px;
+    background: var(--panel); color: var(--fg); border-radius: 14px; padding: 10px 10px 10px 16px;
+    box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
+  }
+  #update-bar[hidden] { display: none; }
+  #update-bar span { flex: 1; min-width: 0; }
+
+  .leaflet-control-attribution { font-size: 10px; }
+  .leaflet-bottom.leaflet-right { margin-bottom: env(safe-area-inset-bottom, 0px); }
+  @media (prefers-reduced-motion: reduce) { #sheet { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Obere Leiste: Titel, Standort-Knopf, Nächster-Knopf, Anbieter-Filter -->
+<div id="top">
+  <div class="bar">
+    <div class="brand">
+      <b>Scooter Radar <small id="app-version" class="num"></small></b>
+      <span id="count">Lade …</span>
+    </div>
+    <button id="btn-locate" aria-label="Zu meinem Standort">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+    </button>
+    <button id="btn-nearest" class="primary">Nächster</button>
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<!-- Fenster, das von unten hereinfährt -->
+<section id="sheet" aria-live="polite">
+  <div class="grip"></div>
+  <div id="sheet-body"></div>
+</section>
+
+<div id="toast" hidden></div>
+
+<!-- Erscheint, wenn während der Nutzung eine neue Version online geht -->
+<div id="update-bar" hidden>
+  <span id="update-text">Neue Version verfügbar</span>
+  <button class="primary" id="btn-update">Jetzt laden</button>
+</div>
+
+<!-- Hinweis, falls keine Karte geladen werden kann -->
+<div id="map-error" hidden>
+  <h2>Die Karte kann nicht geladen werden</h2>
+  <p>Die Seite ist <span class="where"></span> geöffnet, kommt aber an keinen Kartenserver heran.
+     Meistens liegt das daran, dass sie in einer <b>Vorschau</b> geöffnet ist (z.&nbsp;B. in der Claude-App
+     oder einem Mail-/Datei-Viewer). Solche Vorschauen sperren Internetzugriffe.</p>
+  <p><b>So klappt es:</b> Datei herunterladen, im Ordner „Downloads“ mit Rechtsklick
+     → „Öffnen mit“ → <b>Chrome</b>, <b>Firefox</b> oder <b>Edge</b> öffnen. Außerdem muss das Internet verbunden sein.</p>
+</div>
+
+<script>
+/* Läuft zuerst: Wurde die Kartenbibliothek Leaflet überhaupt geladen? */
+if (typeof L === "undefined") {
+  document.getElementById("map-error").hidden = false;
+  document.querySelector("#map-error .where").textContent =
+    location.protocol === "file:" ? "als lokale Datei" : "hier";
+  throw new Error("Leaflet nicht geladen – kein Internetzugriff?");
+}
+</script>
+
+<script>
+/* =====================================================================
+   1. ANBIETER (Beispieldaten – Preise sind ausgedacht)
+   ===================================================================== */
+const PROVIDERS = {
+  lime: { name: "Lime", short: "LI", color: "#22a33a", unlock: 1.00, perMin: 0.29, share: 0.30, bikeShare: 0.25 },
+  voi:  { name: "Voi",  short: "VO", color: "#e5484d", unlock: 1.00, perMin: 0.25, share: 0.25, bikeShare: 0.00 },
+  dott: { name: "Dott", short: "DO", color: "#1d8bd8", unlock: 1.00, perMin: 0.22, share: 0.25, bikeShare: 0.20 },
+  bolt: { name: "Bolt", short: "BO", color: "#8b5cf6", unlock: 0.50, perMin: 0.24, share: 0.20, bikeShare: 0.00 },
+};
+
+const KINDS = {
+  scooter: { label: "E-Scooter", maxRangeKm: 45 },
+  bike:    { label: "E-Bike",    maxRangeKm: 60 },
+};
+
+// Beispiel-Reservierungsbedingungen
+const RESERVE_MINUTES = 15;
+const RESERVE_FREE_MINUTES = 10;
+const RESERVE_PER_MIN = 0.10;
+
+/* =====================================================================
+   2. EINSTELLUNGEN
+   ===================================================================== */
+const MARIENPLATZ  = { lat: 48.1374, lon: 11.5755 };
+const TUM_GARCHING = { lat: 48.2650, lon: 11.6713 };
+const WALK_M_PER_MIN = 80;            // Gehgeschwindigkeit ≈ 4,8 km/h
+const ROUTING_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/driving/";
+const ICON_MIN_ZOOM = 15;             // ab dieser Zoomstufe: Symbole statt Punkte
+
+/* =====================================================================
+   3. ZUSTAND
+   ---------------------------------------------------------------------
+   mode sagt, welches Fenster gerade unten offen ist:
+   null (keins) · "details" · "reserve" · "reserved" · "book" · "ride" · "summary"
+   ===================================================================== */
+const state = {
+  me: { ...MARIENPLATZ },
+  meIsReal: false,
+  vehicles: [],
+  hidden: new Set(),
+  selected: null,
+  route: null,
+  routeLoading: false,
+  mode: null,
+  reserveUntil: null,   // Zeitpunkt, bis zu dem reserviert ist
+  rideStart: null,      // Startzeit der Demo-Fahrt
+  rideResult: null,     // Dauer und Kosten nach Fahrtende
+  timer: null,          // für Countdown / Fahrtzeit
+};
+
+/* =====================================================================
+   4. BEISPIELFLOTTE ERZEUGEN
+   ===================================================================== */
+function seededRandom(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickProvider(r) {
+  let sum = 0;
+  for (const [id, p] of Object.entries(PROVIDERS)) {
+    sum += p.share;
+    if (r < sum) return id;
+  }
+  return "lime";
+}
+
+function generateFleet(center, count, spreadKm, seed) {
+  const rand = seededRandom(seed);
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const u = Math.max(rand(), 1e-9), v = rand();
+    const r = Math.sqrt(-2 * Math.log(u)) * spreadKm;
+    const angle = 2 * Math.PI * v;
+    const lat = center.lat + (r * Math.cos(angle)) / 111;
+    const lon = center.lon + (r * Math.sin(angle)) / (111 * Math.cos((center.lat * Math.PI) / 180));
+
+    const providerId = pickProvider(rand());
+    const provider = PROVIDERS[providerId];
+    const kind = rand() < provider.bikeShare ? "bike" : "scooter";
+    const battery = 0.08 + rand() * 0.92;
+
+    list.push({
+      id: `${seed}-${i}`,
+      code: `${provider.short}-${String(1000 + Math.floor(rand() * 9000))}`,
+      providerId, kind, lat, lon, battery,
+      rangeKm: battery * KINDS[kind].maxRangeKm,
+    });
+  }
+  return list;
+}
+
+function buildFleet() {
+  state.vehicles = [
+    ...generateFleet(MARIENPLATZ, 1400, 2.6, 7),   // Innenstadt
+    ...generateFleet(TUM_GARCHING, 120, 0.6, 11),  // Campus Garching
+  ];
+}
+
+function addFleetNearMeIfNeeded() {
+  const nearest = Math.min(...state.vehicles.map((v) => distanceMeters(state.me, v)));
+  if (nearest > 1500) {
+    const seed = Math.round(state.me.lat * 1000) * 7 + Math.round(state.me.lon * 1000);
+    state.vehicles.push(...generateFleet(state.me, 60, 0.7, seed));
+  }
+}
+
+/* =====================================================================
+   5. HILFSFUNKTIONEN
+   ===================================================================== */
+function distanceMeters(a, b) {
+  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const walkMinutes = (m) => Math.max(1, Math.round(m / WALK_M_PER_MIN));
+const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
+const euro = (x) => x.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+const clock = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function toast(text, ms = 2200) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.hidden = true), ms);
+}
+
+/* =====================================================================
+   6. FAHRZEUG-SYMBOLE
+   ---------------------------------------------------------------------
+   Jedes Symbol ist ein kleines SVG-Bild:
+     - weißer Kreis als Untergrund
+     - Scooter- oder Fahrrad-Zeichnung in der Farbe des Anbieters
+     - Ring außen = Akkustand (grün ≥ 50 %, gelb ≥ 25 %, sonst rot)
+   Damit es flüssig bleibt, wird jedes Bild nur einmal erzeugt und dann
+   wiederverwendet (Akku auf 5 % gerundet).
+   ===================================================================== */
+const BATTERY_COLORS = { ok: "#1f9d55", mid: "#e0a800", low: "#d93a3a" };
+
+function batteryColor(pct) {
+  if (pct >= 50) return BATTERY_COLORS.ok;
+  if (pct >= 25) return BATTERY_COLORS.mid;
+  return BATTERY_COLORS.low;
+}
+
+// Zeichnungen auf einer 24×24-Fläche
+const GLYPHS = {
+  scooter:
+    '<circle cx="5" cy="18" r="2.6"/><circle cx="19" cy="18" r="2.6"/>' +
+    '<path d="M5 15.4h10.8l1.6-1.4M19 18L15.8 4M13.4 4h5"/>',
+  bike:
+    '<circle cx="5.5" cy="16" r="3.9"/><circle cx="18.5" cy="16" r="3.9"/>' +
+    '<path d="M5.5 16H12L10 8ZM12 16l4-8H10M16 8l2.5 8M10 8l-.7-2.5M7.8 5.5h3M16 8l-.6-3H18"/>',
+};
+
+function iconSvg(color, kind, pct) {
+  const r = 17;
+  const circumference = 2 * Math.PI * r;
+  const arc = (circumference * pct) / 100;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+    <circle cx="20" cy="20" r="${r}" fill="#ffffff" stroke="#dcdfdd" stroke-width="4"/>
+    <circle cx="20" cy="20" r="${r}" fill="none" stroke="${batteryColor(pct)}" stroke-width="4"
+            stroke-linecap="round" stroke-dasharray="${arc} ${circumference}" transform="rotate(-90 20 20)"/>
+    <g transform="translate(10 10) scale(0.833)" fill="none" stroke="${color}" stroke-width="2.6"
+       stroke-linecap="round" stroke-linejoin="round">${GLYPHS[kind]}</g>
+  </svg>`;
+}
+
+const iconUrlCache = new Map();
+function iconUrl(v) {
+  const pct = Math.max(5, Math.round((v.battery * 100) / 5) * 5);
+  const key = `${v.providerId}-${v.kind}-${pct}`;
+  if (!iconUrlCache.has(key)) {
+    const svg = iconSvg(PROVIDERS[v.providerId].color, v.kind, pct);
+    iconUrlCache.set(key, "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg));
+  }
+  return iconUrlCache.get(key);
+}
+
+const leafletIconCache = new Map();
+function vehicleIcon(v, size) {
+  const key = iconUrl(v) + size;
+  if (!leafletIconCache.has(key)) {
+    leafletIconCache.set(key, L.icon({
+      iconUrl: iconUrl(v), iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+      className: "vehicle-icon",
+    }));
+  }
+  return leafletIconCache.get(key);
+}
+
+/* =====================================================================
+   7. KARTE
+   ===================================================================== */
+const map = L.map("map", { zoomControl: false }).setView([state.me.lat, state.me.lon], 16);
+
+const TILE_SOURCES = [
+  {
+    // Die Karte aus karte.html – bei dir getestet und funktioniert
+    name: "Esri Straßenkarte",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    options: { maxZoom: 19, attribution: "© Esri, OpenStreetMap-Mitwirkende" },
+  },
+  {
+    name: "CARTO",
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    options: { subdomains: "abcd", maxZoom: 20, attribution: "© OpenStreetMap-Mitwirkende · © CARTO" },
+  },
+  {
+    name: "OpenStreetMap",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    options: { maxZoom: 19, attribution: "© OpenStreetMap-Mitwirkende" },
+  },
+];
+
+let tileIndex = 0;
+let tileLayer = null;
+
+function useTileSource(i) {
+  if (tileLayer) map.removeLayer(tileLayer);
+  if (i >= TILE_SOURCES.length) return showMapError();
+  tileIndex = i;
+  const src = TILE_SOURCES[i];
+  let loaded = 0, failed = 0;
+  tileLayer = L.tileLayer(src.url, src.options).addTo(map);
+  tileLayer.bringToBack();
+  tileLayer.on("tileload", () => { loaded++; });
+  tileLayer.on("tileerror", () => {
+    failed++;
+    if (failed >= 4 && loaded === 0) useTileSource(i + 1);
+  });
+  setTimeout(() => { if (tileIndex === i && loaded === 0) useTileSource(i + 1); }, 6000);
+}
+
+function showMapError() {
+  const box = document.getElementById("map-error");
+  box.hidden = false;
+  box.querySelector(".where").textContent =
+    location.protocol === "file:" ? "als lokale Datei" : `unter ${location.host || "dieser Adresse"}`;
+}
+
+useTileSource(0);
+
+const dotRenderer = L.canvas({ padding: 0.3, tolerance: 8 });
+const routeLayer = L.layerGroup().addTo(map);
+const vehicleLayer = L.layerGroup().addTo(map);
+const selectedLayer = L.layerGroup().addTo(map);
+
+const meHalo = L.circleMarker([state.me.lat, state.me.lon], {
+  radius: 18, stroke: false, fillColor: css("--me"), fillOpacity: 0.18, interactive: false,
+}).addTo(map);
+const meDot = L.circleMarker([state.me.lat, state.me.lon], {
+  radius: 8, color: "#fff", weight: 3, fillColor: css("--me"), fillOpacity: 1, interactive: false,
+}).addTo(map);
+
+/* =====================================================================
+   8. FAHRZEUGE IM KARTENAUSSCHNITT ZEICHNEN
+   ---------------------------------------------------------------------
+   Nah dran (Zoom ≥ 15): Symbole mit Akkuring.
+   Weit weg: kleine Punkte (Füllung = Anbieter, Rand = Akkufarbe),
+   sonst würden sich Hunderte Symbole überdecken und die Karte ruckeln.
+   ===================================================================== */
+function drawVehicles() {
+  vehicleLayer.clearLayers();
+  const bounds = map.getBounds().pad(0.1);
+  const zoom = map.getZoom();
+  const useIcons = zoom >= ICON_MIN_ZOOM;
+  const iconSize = zoom >= 17 ? 38 : 32;
+  const dotSize = zoom >= 13 ? 5 : 3;
+
+  let visible = 0;
+  for (const v of state.vehicles) {
+    if (state.hidden.has(v.providerId)) continue;
+    if (!bounds.contains([v.lat, v.lon])) continue;
+    visible++;
+
+    let marker;
+    if (useIcons) {
+      marker = L.marker([v.lat, v.lon], { icon: vehicleIcon(v, iconSize), keyboard: false });
+    } else {
+      marker = L.circleMarker([v.lat, v.lon], {
+        renderer: dotRenderer, radius: dotSize,
+        color: batteryColor(v.battery * 100), weight: 2,
+        fillColor: PROVIDERS[v.providerId].color, fillOpacity: 1,
+        bubblingMouseEvents: false,
+      });
+    }
+    marker.on("click", () => selectVehicle(v)).addTo(vehicleLayer);
+  }
+  const hint = useIcons ? "" : " · reinzoomen für Symbole";
+  document.getElementById("count").textContent =
+    `${visible.toLocaleString("de-DE")} Fahrzeuge im Ausschnitt${hint} · Beispieldaten`;
+}
+map.on("moveend", drawVehicles);
+
+function highlight(v) {
+  selectedLayer.clearLayers();
+  if (!v) return;
+  L.marker([v.lat, v.lon], {
+    icon: vehicleIcon(v, 54), interactive: false, zIndexOffset: 1000, keyboard: false,
+  }).addTo(selectedLayer);
+}
+
+/* =====================================================================
+   9. FUSSWEG BERECHNEN
+   ===================================================================== */
+async function fetchRoute(from, to) {
+  const url = `${ROUTING_URL}${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 7000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    const r = json.routes && json.routes[0];
+    if (!r) throw new Error("keine Route");
+    return { coords: r.geometry.coordinates.map(([lon, lat]) => [lat, lon]), meters: r.distance, estimated: false };
+  } catch (err) {
+    console.warn("Routing fehlgeschlagen, nutze Schätzung:", err);
+    return {
+      coords: [[from.lat, from.lon], [to.lat, to.lon]],
+      meters: distanceMeters(from, to) * 1.3,
+      estimated: true,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function drawRoute(route) {
+  routeLayer.clearLayers();
+  const dash = route.estimated ? "2 10" : null;
+  L.polyline(route.coords, { color: "#ffffff", weight: 10, opacity: 0.9, lineCap: "round", dashArray: dash, interactive: false }).addTo(routeLayer);
+  L.polyline(route.coords, { color: css("--route"), weight: 6, lineCap: "round", dashArray: dash, interactive: false }).addTo(routeLayer);
+  map.fitBounds(L.latLngBounds(route.coords).pad(0.25), {
+    paddingBottomRight: [0, sheet.offsetHeight], paddingTopLeft: [0, 120], maxZoom: 18,
+  });
+}
+
+function clearRoute() {
+  routeLayer.clearLayers();
+  state.route = null;
+}
+
+/* =====================================================================
+   10. AUSWÄHLEN: Antippen → Fenster + Fußweg sofort
+   ===================================================================== */
+async function selectVehicle(v, knownRoute) {
+  if (state.mode === "ride") return toast("Beende zuerst deine Fahrt.");
+  if (state.mode === "reserved") return toast("Hebe zuerst deine Reservierung auf.");
+
+  stopTimer();
+  clearRoute();
+  state.selected = v;
+  state.mode = "details";
+  highlight(v);
+
+  if (knownRoute) {
+    state.route = knownRoute;
+    state.routeLoading = false;
+    renderSheet();
+    drawRoute(knownRoute);
+    return;
+  }
+
+  state.routeLoading = true;
+  renderSheet();
+  const route = await fetchRoute(state.me, v);
+  if (state.selected !== v) return;          // inzwischen etwas anderes gewählt
+  state.route = route;
+  state.routeLoading = false;
+  drawRoute(route);
+  if (state.mode === "details") renderSheet();
+}
+
+/* =====================================================================
+   11. DAS FENSTER UNTEN – je nach "mode" ein anderer Inhalt
+   ===================================================================== */
+const sheet = document.getElementById("sheet");
+const sheetBody = document.getElementById("sheet-body");
+
+function renderSheet() {
+  const v = state.selected;
+  if (!state.mode || !v) { sheet.classList.remove("open"); return; }
+
+  const screens = {
+    details: screenDetails,
+    reserve: screenReserve,
+    reserved: screenReserved,
+    book: screenBook,
+    ride: screenRide,
+    summary: screenSummary,
+  };
+  sheetBody.innerHTML = screens[state.mode](v);
+  sheet.classList.add("open");
+
+  // Alle Knöpfe mit data-action verdrahten
+  sheetBody.querySelectorAll("[data-action]").forEach((btn) => {
+    btn.addEventListener("click", () => ACTIONS[btn.dataset.action]());
+  });
+}
+
+function head(v, title, sub) {
+  const p = PROVIDERS[v.providerId];
+  const closable = state.mode !== "ride" && state.mode !== "reserved";
+  return `
+    <div class="sheet-head">
+      <img src="${iconUrl(v)}" alt="">
+      <div>
+        <h2>${title}</h2>
+        <p>${sub || `${p.name} · <span class="num">${v.code}</span>`}</p>
+      </div>
+      ${closable ? '<button class="x" data-action="close" aria-label="Schließen">✕</button>' : ""}
+    </div>`;
+}
+
+function walkBlock() {
+  if (state.routeLoading || !state.route) {
+    return `<div class="walk"><strong>…</strong><span>Fußweg wird berechnet</span></div><p class="note">&nbsp;</p>`;
+  }
+  const minutes = walkMinutes(state.route.meters);
+  const arrival = new Date(Date.now() + minutes * 60000);
+  const note = state.route.estimated
+    ? "Routing-Server nicht erreichbar: Luftlinie, Gehzeit geschätzt."
+    : "Fußweg über Straßen und Wege, auf der Karte eingezeichnet.";
+  return `
+    <div class="walk"><strong>${minutes} Min</strong><span>zu Fuß · ${fmtDist(state.route.meters)} · Ankunft ${clock(arrival)}</span></div>
+    <p class="note">${note}</p>`;
+}
+
+function screenDetails(v) {
+  const p = PROVIDERS[v.providerId];
+  const pct = Math.round(v.battery * 100);
+  return `
+    ${head(v, `${KINDS[v.kind].label} · ${p.name}`)}
+    <div class="stats">
+      <div class="stat">
+        <small>Akku</small><strong>${pct} %</strong>
+        <div class="meter"><i style="width:${pct}%;background:${batteryColor(pct)}"></i></div>
+      </div>
+      <div class="stat"><small>Reichweite</small><strong>${Math.round(v.rangeKm)} km</strong></div>
+      <div class="stat"><small>Kennung</small><strong style="font-size:15px">${v.code}</strong></div>
+    </div>
+    ${walkBlock()}
+    <div class="price-box">
+      <div class="price-row"><span>Entsperren</span><span>${euro(p.unlock)}</span></div>
+      <div class="price-row"><span>Pro Minute</span><span>${euro(p.perMin)}</span></div>
+      <div class="price-row total"><span>10 Minuten Fahrt</span><span>${euro(p.unlock + 10 * p.perMin)}</span></div>
+    </div>
+    <div class="actions">
+      <button class="ghost" data-action="toReserve">Reservieren</button>
+      <button class="primary" data-action="toBook">Jetzt buchen</button>
+    </div>`;
+}
+
+function screenReserve(v) {
+  return `
+    ${head(v, "Reservieren")}
+    <span class="demo">Demo · es wird nichts reserviert oder bezahlt</span>
+    <ul class="list">
+      <li>Das Fahrzeug wird ${RESERVE_MINUTES} Minuten für dich freigehalten.</li>
+      <li>Die ersten ${RESERVE_FREE_MINUTES} Minuten sind kostenlos, danach ${euro(RESERVE_PER_MIN)} pro Minute.</li>
+      <li>Du kannst die Reservierung jederzeit aufheben.</li>
+    </ul>
+    ${walkBlock()}
+    <div class="row-select"><span>Zahlungsart</span><b>PayPal (Beispiel)</b></div>
+    <div class="actions">
+      <button class="ghost" data-action="toDetails">Zurück</button>
+      <button class="primary" data-action="confirmReserve">Reservierung bestätigen</button>
+    </div>`;
+}
+
+function screenReserved(v) {
+  const left = Math.max(0, Math.round((state.reserveUntil - Date.now()) / 1000));
+  return `
+    ${head(v, "Reserviert")}
+    <span class="demo">Demo-Reservierung</span>
+    <div class="big-clock" id="clock">${mmss(left)}</div>
+    <p class="note">Reserviert bis ${clock(new Date(state.reserveUntil))}. Lauf los, der Weg ist eingezeichnet.</p>
+    ${walkBlock()}
+    <div class="actions">
+      <button class="ghost" data-action="cancelReserve">Reservierung aufheben</button>
+      <button class="primary" data-action="toBook">Jetzt buchen</button>
+    </div>`;
+}
+
+function screenBook(v) {
+  const p = PROVIDERS[v.providerId];
+  return `
+    ${head(v, "Fahrt starten")}
+    <span class="demo">Demo · es wird nichts gebucht oder bezahlt</span>
+    <div class="scan">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8V4h4M17 4h4v4M21 16v4h-4M7 20H3v-4"/><path d="M8 8h3v3H8zM13 13h3v3h-3zM13 8h3M8 13v3"/></svg>
+      <span>In der fertigen App scannst du hier den QR-Code am Lenker. Für die Demo reicht ein Tipp auf „Entsperren“.</span>
+    </div>
+    <ul class="list">
+      <li>Helm wird empfohlen.</li>
+      <li>Fahre auf Radwegen oder der Straße, nicht auf dem Gehweg.</li>
+      <li>Stelle das Fahrzeug am Ende in einer erlaubten Zone ab.</li>
+    </ul>
+    <div class="price-box">
+      <div class="price-row"><span>Entsperren</span><span>${euro(p.unlock)}</span></div>
+      <div class="price-row"><span>Pro Minute</span><span>${euro(p.perMin)}</span></div>
+      <div class="price-row"><span>Zahlungsart</span><span>PayPal (Beispiel)</span></div>
+    </div>
+    <div class="actions">
+      <button class="ghost" data-action="backFromBook">Zurück</button>
+      <button class="primary" data-action="startRide">Entsperren</button>
+    </div>`;
+}
+
+function rideCost(v, seconds) {
+  const p = PROVIDERS[v.providerId];
+  const startedMinutes = Math.max(1, Math.ceil(seconds / 60));   // jede angefangene Minute zählt
+  return p.unlock + startedMinutes * p.perMin;
+}
+
+function screenRide(v) {
+  const sec = Math.floor((Date.now() - state.rideStart) / 1000);
+  return `
+    ${head(v, "Fahrt läuft", `${PROVIDERS[v.providerId].name} · <span class="num">${v.code}</span> · Akku ${Math.round(v.battery * 100)} %`)}
+    <span class="demo">Demo-Fahrt</span>
+    <div class="big-clock" id="clock">${mmss(sec)}</div>
+    <p class="note">Bisherige Kosten: <b class="num" id="cost">${euro(rideCost(v, sec))}</b></p>
+    <div class="actions">
+      <button class="primary" data-action="endRide">Fahrt beenden</button>
+    </div>`;
+}
+
+function screenSummary(v) {
+  const r = state.rideResult;
+  return `
+    ${head(v, "Fahrt beendet")}
+    <span class="demo">Demo · es wurde nichts abgerechnet</span>
+    <div class="price-box">
+      <div class="price-row"><span>Dauer</span><span>${mmss(r.seconds)}</span></div>
+      <div class="price-row"><span>Entsperren</span><span>${euro(PROVIDERS[v.providerId].unlock)}</span></div>
+      <div class="price-row total"><span>Gesamt</span><span>${euro(r.cost)}</span></div>
+    </div>
+    <div class="actions">
+      <button class="primary" data-action="close">Fertig</button>
+    </div>`;
+}
+
+/* =====================================================================
+   12. WAS DIE KNÖPFE IM FENSTER TUN
+   ===================================================================== */
+let bookCameFrom = "details";   // wohin "Zurück" im Buchungsfenster führt
+
+const ACTIONS = {
+  close() { closeSheet(); },
+  toDetails() { state.mode = "details"; renderSheet(); },
+  toReserve() { state.mode = "reserve"; renderSheet(); },
+  confirmReserve() {
+    state.reserveUntil = Date.now() + RESERVE_MINUTES * 60000;
+    state.mode = "reserved";
+    renderSheet();
+    startTimer(() => {
+      const left = Math.round((state.reserveUntil - Date.now()) / 1000);
+      if (left <= 0) {
+        stopTimer();
+        toast("Reservierung abgelaufen (Demo)");
+        state.mode = "details";
+        return renderSheet();
+      }
+      setText("clock", mmss(left));
+    });
+    toast("Reserviert (Demo)");
+  },
+  cancelReserve() {
+    stopTimer();
+    state.reserveUntil = null;
+    state.mode = "details";
+    renderSheet();
+    toast("Reservierung aufgehoben");
+  },
+  toBook() {
+    bookCameFrom = state.mode;        // "details" oder "reserved"
+    stopTimer();
+    state.mode = "book";
+    renderSheet();
+  },
+  backFromBook() {
+    if (bookCameFrom === "reserved" && state.reserveUntil > Date.now()) {
+      ACTIONS.confirmReserveResume();
+    } else {
+      state.mode = "details";
+      renderSheet();
+    }
+  },
+  confirmReserveResume() {
+    state.mode = "reserved";
+    renderSheet();
+    startTimer(() => {
+      const left = Math.round((state.reserveUntil - Date.now()) / 1000);
+      if (left <= 0) { stopTimer(); state.mode = "details"; return renderSheet(); }
+      setText("clock", mmss(left));
+    });
+  },
+  startRide() {
+    state.reserveUntil = null;
+    state.rideStart = Date.now();
+    state.mode = "ride";
+    clearRoute();
+    renderSheet();
+    const v = state.selected;
+    startTimer(() => {
+      const sec = Math.floor((Date.now() - state.rideStart) / 1000);
+      setText("clock", mmss(sec));
+      setText("cost", euro(rideCost(v, sec)));
+    });
+    toast("Entsperrt (Demo)");
+  },
+  endRide() {
+    stopTimer();
+    const seconds = Math.floor((Date.now() - state.rideStart) / 1000);
+    state.rideResult = { seconds, cost: rideCost(state.selected, seconds) };
+    state.mode = "summary";
+    renderSheet();
+  },
+};
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+function startTimer(fn) { stopTimer(); state.timer = setInterval(fn, 1000); }
+function stopTimer() { clearInterval(state.timer); state.timer = null; }
+
+function closeSheet() {
+  stopTimer();
+  state.mode = null;
+  state.selected = null;
+  state.reserveUntil = null;
+  state.rideStart = null;
+  highlight(null);
+  clearRoute();
+  renderSheet();
+}
+
+// Tippen auf eine leere Stelle der Karte schließt das Detail-Fenster
+map.on("click", () => {
+  if (state.mode === "details") closeSheet();
+});
+
+/* =====================================================================
+   13. "NÄCHSTER": kürzester FUSSWEG, nicht kürzeste Luftlinie
+   ===================================================================== */
+document.getElementById("btn-nearest").addEventListener("click", async () => {
+  if (state.mode === "ride" || state.mode === "reserved") {
+    return toast(state.mode === "ride" ? "Beende zuerst deine Fahrt." : "Hebe zuerst deine Reservierung auf.");
+  }
+  const btn = document.getElementById("btn-nearest");
+  const candidates = state.vehicles
+    .filter((v) => !state.hidden.has(v.providerId))
+    .map((v) => ({ v, air: distanceMeters(state.me, v) }))
+    .sort((a, b) => a.air - b.air)
+    .slice(0, 5);
+  if (candidates.length === 0) return toast("Kein Anbieter ausgewählt.");
+
+  btn.disabled = true;
+  toast("Suche das nächste Fahrzeug …", 8000);
+  const routes = await Promise.all(candidates.map((c) => fetchRoute(state.me, c.v)));
+  btn.disabled = false;
+  document.getElementById("toast").hidden = true;
+
+  let best = 0;
+  routes.forEach((r, i) => { if (r.meters < routes[best].meters) best = i; });
+  selectVehicle(candidates[best].v, routes[best]);
+});
+
+/* =====================================================================
+   14. STANDORT
+   ---------------------------------------------------------------------
+   Zum Testen: lange auf die Karte drücken (Handy) oder Rechtsklick (PC)
+   setzt deinen Standort an diese Stelle.
+   ===================================================================== */
+function setMe(lat, lon, isReal) {
+  state.me = { lat, lon };
+  state.meIsReal = isReal;
+  meDot.setLatLng([lat, lon]);
+  meHalo.setLatLng([lat, lon]);
+  addFleetNearMeIfNeeded();
+  // Ist gerade ein Fahrzeug gewählt, den Weg neu berechnen
+  if (state.selected && (state.mode === "details" || state.mode === "reserve" || state.mode === "reserved")) {
+    const v = state.selected;
+    state.routeLoading = true;
+    renderSheet();
+    fetchRoute(state.me, v).then((route) => {
+      if (state.selected !== v) return;
+      state.route = route;
+      state.routeLoading = false;
+      drawRoute(route);
+      renderSheet();
+    });
+  }
+}
+
+function locate(fly) {
+  if (!navigator.geolocation) return toast("Dein Browser kann keinen Standort liefern.");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setMe(pos.coords.latitude, pos.coords.longitude, true);
+      map.setView([state.me.lat, state.me.lon], 16);
+    },
+    () => {
+      if (fly) toast("Standort nicht freigegeben. Tipp: Rechtsklick auf die Karte setzt ihn manuell.", 4000);
+      map.setView([state.me.lat, state.me.lon], 16);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+document.getElementById("btn-locate").addEventListener("click", () => {
+  map.setView([state.me.lat, state.me.lon], 16);
+  locate(true);
+});
+
+map.on("contextmenu", (e) => {
+  setMe(e.latlng.lat, e.latlng.lng, false);
+  drawVehicles();
+  toast("Standort hierhin gesetzt");
+});
+
+/* =====================================================================
+   15. ANBIETER-FILTER
+   ===================================================================== */
+const chips = document.getElementById("chips");
+for (const [id, p] of Object.entries(PROVIDERS)) {
+  const b = document.createElement("button");
+  b.className = "chip";
+  b.setAttribute("aria-pressed", "true");
+  b.innerHTML = `<i style="background:${p.color}"></i>${p.name}`;
+  b.onclick = () => {
+    if (state.hidden.has(id)) state.hidden.delete(id); else state.hidden.add(id);
+    b.setAttribute("aria-pressed", String(!state.hidden.has(id)));
+    if (state.mode === "details" && state.hidden.has(state.selected.providerId)) closeSheet();
+    drawVehicles();
+  };
+  chips.appendChild(b);
+}
+
+/* =====================================================================
+   16. APP & AUTOMATISCHE UPDATES
+   ---------------------------------------------------------------------
+   So funktioniert es:
+   1. Der Service Worker (sw.js) lädt beim Start immer zuerst die neueste
+      index.html aus dem Internet. Neuer Code ist damit sofort aktiv.
+   2. Zusätzlich lesen wir version.json. Ist die Nummer anders als beim
+      letzten Start, zeigen wir "Aktualisiert auf Version …".
+   3. Bleibt die App lange offen und du lädst zwischendurch eine neue
+      Version hoch, erscheint beim Zurückkehren ein Hinweis "Jetzt laden".
+   Für ein Update musst du also nur: Code ändern, version.json hochzählen,
+   hochladen. Fertig – niemand muss neu installieren.
+   ===================================================================== */
+let runningVersion = null;
+
+async function fetchVersionInfo() {
+  const res = await fetch(`./version.json?t=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+async function checkForUpdate(isStart) {
+  if (location.protocol === "file:") {
+    setText("app-version", "lokal");
+    return;                                 // als Datei geöffnet: keine Updates
+  }
+  try {
+    const info = await fetchVersionInfo();
+    if (isStart) {
+      runningVersion = info.version;
+      setText("app-version", "v" + info.version);
+      let last = null;
+      try { last = localStorage.getItem("appVersion"); } catch (e) {}
+      if (last && last !== info.version) toast(`Aktualisiert auf Version ${info.version}`, 3500);
+      try { localStorage.setItem("appVersion", info.version); } catch (e) {}
+    } else if (runningVersion && info.version !== runningVersion) {
+      setText("update-text", `Neue Version ${info.version} verfügbar`);
+      document.getElementById("update-bar").hidden = false;
+    }
+  } catch (err) {
+    // Kein Internet: App läuft mit der gespeicherten Version weiter
+    if (isStart) setText("app-version", "offline");
+  }
+}
+
+document.getElementById("btn-update").addEventListener("click", () => location.reload());
+
+// Wenn die App aus dem Hintergrund zurückkommt: erneut nach Updates schauen
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") checkForUpdate(false);
+});
+
+// Den Hintergrund-Helfer anmelden (nur über https, nicht als lokale Datei)
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+    .catch((err) => console.warn("Service Worker nicht registriert:", err));
+}
+
+/* ===== START ===== */
+buildFleet();
+drawVehicles();
+locate(false);
+checkForUpdate(true);
+</script>
+</body>
+</html>
