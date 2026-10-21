@@ -1,4 +1,4 @@
 {
-  "version": "1.2.0",
-  "notes": "Konto mit Zahlungsmethoden, Gutscheinen, Fahrten und App-Einstellungen"
+  "version": "1.3.0",
+  "notes": "Gruppen, QR-Scanner, Fahrtdetails, Zurück-Wischen, Offline-Karte, Standort-Hinweis"
 }
